@@ -5,7 +5,14 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 )
+
+type RequestStats struct {
+	Url          string
+	Status       int
+	ResponseTime time.Duration
+}
 
 func doRequest(url string, cs chan string) {
 	resp, err := http.Get(url)
