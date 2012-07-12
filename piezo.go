@@ -2,37 +2,37 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
 )
 
-type RequestStats struct {
+type RequestStat struct {
 	Url          string
 	Status       int
 	ResponseTime time.Duration
 }
 
-func doRequest(url string, cs chan string) {
+func doRequest(url string, cs chan *RequestStat) {
+	stat := new(RequestStat)
+	stat.Url = url
+
+	start := time.Now()
 	resp, err := http.Get(url)
+	stat.ResponseTime = time.Now().Sub(start)
 
 	if err != nil {
 		log.Printf("Failed to fetch %s", url)
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	stat.Status = resp.StatusCode
 
-	if err != nil {
-		log.Printf("Failed to read the response body!")
-	}
-
-	cs <- string(body)
+	cs <- stat
 }
 
 func main() {
-	cs := make(chan string)
+	cs := make(chan *RequestStat)
 
 	go doRequest("http://blakesmith.me", cs)
 
