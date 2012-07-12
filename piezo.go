@@ -33,7 +33,6 @@ func doRequest(url string, cs chan *RequestStat) {
 
 func doStatCollect(cs chan *RequestStat, n int) {
 	stats := make([]*RequestStat, n)
-	fmt.Println(cap(stats))
 
 	for i := 0; i < len(stats); i++ {
 		fmt.Println(<-cs)
