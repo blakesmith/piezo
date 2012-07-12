@@ -31,7 +31,7 @@ func doRequest(url string, cs chan *RequestStat) {
 	cs <- stat
 }
 
-func doStatCollect(cs chan *RequestStat, n int) {
+func StatCollect(cs chan *RequestStat, n int) {
 	stats := make([]*RequestStat, n)
 
 	for i := 0; i < len(stats); i++ {
@@ -47,5 +47,5 @@ func main() {
 		go doRequest("http://blakesmith.me", cs)
 	}
 
-	doStatCollect(cs, c)
+	StatCollect(cs, c)
 }
