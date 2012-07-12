@@ -31,10 +31,22 @@ func doRequest(url string, cs chan *RequestStat) {
 	cs <- stat
 }
 
+func doStatCollect(cs chan *RequestStat, n int) {
+	stats := make([]*RequestStat, n)
+	fmt.Println(cap(stats))
+
+	for i := 0; i < len(stats); i++ {
+		fmt.Println(<-cs)
+	}
+}
+
 func main() {
+	c := 10
 	cs := make(chan *RequestStat)
 
-	go doRequest("http://blakesmith.me", cs)
+	for i := 0; i < c; i++ {
+		go doRequest("http://blakesmith.me", cs)
+	}
 
-	fmt.Println(<-cs)
+	doStatCollect(cs, c)
 }
