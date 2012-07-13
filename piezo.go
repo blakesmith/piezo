@@ -14,8 +14,9 @@ type RequestStat struct {
 }
 
 type RepeatingRequest struct {
-	Url   string
-	Every int
+	Url    string
+	Every  time.Duration
+	Ticker *time.Ticker
 }
 
 func doRequest(url string) *RequestStat {
@@ -54,6 +55,12 @@ func startCollect(cs chan *RequestStat) {
 	}
 }
 
+func (r *RepeatingRequest) Start(url string, every time.Duration) {
+	r.Url = url
+	r.Every = every
+	r.Ticker = time.NewTicker(every)
+}
+
 func startControl(workerCount int) {
 	rcs := make(chan string)
 	cs := make(chan *RequestStat)
@@ -66,13 +73,14 @@ func startControl(workerCount int) {
 		go startClient(rcs, cs)
 	}
 
-	for {
-		for i := 0; i < 1000; i++ {
-			rcs <- "http://blakesmith.me"
-		}
+	req := new(RepeatingRequest)
+	req.Start("http://localhost:9000", 5*time.Second)
 
-		fmt.Println("Sleeping")
-		time.Sleep(1 * time.Second)
+	for {
+		select {
+		case <-req.Ticker.C:
+			rcs <- req.Url
+		}
 	}
 }
 
