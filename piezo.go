@@ -13,6 +13,11 @@ type RequestStat struct {
 	ResponseTime time.Duration
 }
 
+type RepeatingRequest struct {
+	Url   string
+	Every int
+}
+
 func doRequest(url string) *RequestStat {
 	stat := new(RequestStat)
 	stat.Url = url
@@ -49,32 +54,29 @@ func startCollect(cs chan *RequestStat) {
 	}
 }
 
-func main() {
-	c := 10
+func startControl(workerCount int) {
 	rcs := make(chan string)
 	cs := make(chan *RequestStat)
 
 	fmt.Println("Spawning collector")
 	go startCollect(cs)
 
-	for i := 0; i < c; i++ {
+	for i := 0; i < workerCount; i++ {
 		fmt.Printf("Spawning client %d\n", i)
 		go startClient(rcs, cs)
 	}
 
-	fmt.Println("Sleeping")
-	time.Sleep(2 * time.Second)
+	for {
+		for i := 0; i < 1000; i++ {
+			rcs <- "http://blakesmith.me"
+		}
 
-	for i := 0; i < c; i++ {
-		rcs <- "http://blakesmith.me"
+		fmt.Println("Sleeping")
+		time.Sleep(1 * time.Second)
 	}
+}
 
-	fmt.Println("Sleeping")
-	time.Sleep(2 * time.Second)
-
-	for i := 0; i < c; i++ {
-		rcs <- "http://blakesmith.me"
-	}
-
-	time.Sleep(10 * time.Second)
+func main() {
+	workers := 10
+	startControl(workers)
 }
