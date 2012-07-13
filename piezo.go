@@ -13,7 +13,7 @@ type RequestStat struct {
 	ResponseTime time.Duration
 }
 
-func doRequest(url string, cs chan *RequestStat) {
+func doRequest(url string) *RequestStat {
 	stat := new(RequestStat)
 	stat.Url = url
 
@@ -28,24 +28,53 @@ func doRequest(url string, cs chan *RequestStat) {
 
 	stat.Status = resp.StatusCode
 
-	cs <- stat
+	return stat
 }
 
-func StatCollect(cs chan *RequestStat, n int) {
-	stats := make([]*RequestStat, n)
+func startClient(rcs chan string, scs chan *RequestStat) {
+	for {
+		select {
+		case url := <-rcs:
+			scs <- doRequest(url)
+		}
+	}
+}
 
-	for i := 0; i < len(stats); i++ {
-		fmt.Println(<-cs)
+func startCollect(cs chan *RequestStat) {
+	for {
+		select {
+		case stat := <-cs:
+			fmt.Println(stat)
+		}
 	}
 }
 
 func main() {
 	c := 10
+	rcs := make(chan string)
 	cs := make(chan *RequestStat)
 
+	fmt.Println("Spawning collector")
+	go startCollect(cs)
+
 	for i := 0; i < c; i++ {
-		go doRequest("http://blakesmith.me", cs)
+		fmt.Printf("Spawning client %d\n", i)
+		go startClient(rcs, cs)
 	}
 
-	StatCollect(cs, c)
+	fmt.Println("Sleeping")
+	time.Sleep(2 * time.Second)
+
+	for i := 0; i < c; i++ {
+		rcs <- "http://blakesmith.me"
+	}
+
+	fmt.Println("Sleeping")
+	time.Sleep(2 * time.Second)
+
+	for i := 0; i < c; i++ {
+		rcs <- "http://blakesmith.me"
+	}
+
+	time.Sleep(10 * time.Second)
 }
