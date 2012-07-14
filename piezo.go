@@ -55,13 +55,26 @@ func startCollect(cs chan *RequestStat) {
 	}
 }
 
-func (r *RepeatingRequest) Start(url string, every time.Duration) {
+func (r *RepeatingRequest) Start(url string, every time.Duration, rcs chan string) {
 	r.Url = url
 	r.Every = every
 	r.Ticker = time.NewTicker(every)
+	for {
+		select {
+		case <-r.Ticker.C:
+			rcs <- r.Url
+		}
+	}
 }
 
-func startControl(workerCount int) {
+func NewRepeatingRequest(url string, every time.Duration, rcs chan string) *RepeatingRequest {
+	r := new(RepeatingRequest)
+	go r.Start(url, every, rcs)
+
+	return r
+}
+
+func startControl(workerCount int, control chan int) {
 	rcs := make(chan string)
 	cs := make(chan *RequestStat)
 
@@ -73,18 +86,16 @@ func startControl(workerCount int) {
 		go startClient(rcs, cs)
 	}
 
-	req := new(RepeatingRequest)
-	req.Start("http://localhost:9000", 5*time.Second)
+	s := 2
+	reqs := make([]*RepeatingRequest, s)
+	reqs[0] = NewRepeatingRequest("http://localhost:9000", 1*time.Second, rcs)
+	reqs[1] = NewRepeatingRequest("http://blakesmith.me", 3*time.Second, rcs)
 
-	for {
-		select {
-		case <-req.Ticker.C:
-			rcs <- req.Url
-		}
-	}
+	<-control
 }
 
 func main() {
 	workers := 10
-	startControl(workers)
+	control := make(chan int)
+	startControl(workers, control)
 }
