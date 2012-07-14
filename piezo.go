@@ -11,6 +11,7 @@ type RequestStat struct {
 	Url          string
 	Status       int
 	ResponseTime time.Duration
+	StartTime    time.Time
 }
 
 type RepeatingRequest struct {
@@ -26,6 +27,7 @@ func doRequest(url string) *RequestStat {
 	start := time.Now()
 	resp, err := http.Get(url)
 	stat.ResponseTime = time.Now().Sub(start)
+	stat.StartTime = start
 
 	if err != nil {
 		log.Printf("Failed to fetch %s", url)
