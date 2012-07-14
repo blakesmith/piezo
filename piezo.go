@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -23,8 +24,11 @@ type RepeatingRequest struct {
 	Ticker *time.Ticker
 }
 
-var RepeatingRequests map[int]*RepeatingRequest
-var rcs chan string
+var (
+	port = flag.String("port", "9001", "Port to run the http server on")
+	RepeatingRequests = make(map[int]*RepeatingRequest)
+	rcs = make(chan string)
+)
 
 func doRequest(url string) *RequestStat {
 	stat := new(RequestStat)
@@ -87,7 +91,6 @@ func NewRepeatingRequest(url string, every time.Duration, rcs chan string) *Repe
 }
 
 func startControl(workerCount int) {
-	rcs = make(chan string)
 	cs := make(chan *RequestStat)
 
 	fmt.Println("Spawning collector")
@@ -155,7 +158,6 @@ func removeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	RepeatingRequests = make(map[int]*RepeatingRequest)
 	workers := 10
 	startControl(workers)
 
