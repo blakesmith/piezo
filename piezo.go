@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -19,6 +20,9 @@ type RepeatingRequest struct {
 	Every  time.Duration
 	Ticker *time.Ticker
 }
+
+var RepeatingRequests map[int]*RepeatingRequest
+var rcs chan string
 
 func doRequest(url string) *RequestStat {
 	stat := new(RequestStat)
@@ -76,8 +80,8 @@ func NewRepeatingRequest(url string, every time.Duration, rcs chan string) *Repe
 	return r
 }
 
-func startControl(workerCount int, control chan int) {
-	rcs := make(chan string)
+func startControl(workerCount int) {
+	rcs = make(chan string)
 	cs := make(chan *RequestStat)
 
 	fmt.Println("Spawning collector")
@@ -87,17 +91,48 @@ func startControl(workerCount int, control chan int) {
 		fmt.Printf("Spawning client %d\n", i)
 		go startClient(rcs, cs)
 	}
+}
 
-	s := 2
-	reqs := make([]*RepeatingRequest, s)
-	reqs[0] = NewRepeatingRequest("http://localhost:9000", 1*time.Second, rcs)
-	reqs[1] = NewRepeatingRequest("http://blakesmith.me", 3*time.Second, rcs)
+func addHandler(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
 
-	<-control
+	var url string
+	var every int
+	var id int
+
+	if val, ok := r.Form["url"]; ok {
+		url = val[0]
+	} else {
+		http.Error(w, "url is required", 400)
+
+		return
+	}
+
+	if val, ok := r.Form["every"]; ok {
+		every, _ = strconv.Atoi(val[0])
+	} else {
+		http.Error(w, "every is required", 400)
+
+		return
+	}
+
+	if val, ok := r.Form["id"]; ok {
+		id, _ = strconv.Atoi(val[0])
+	} else {
+		http.Error(w, "id is required", 400)
+	}
+
+	rec := NewRepeatingRequest(url, time.Duration(every)*time.Second, rcs)
+	RepeatingRequests[id] = rec
+
+	fmt.Fprintf(w, "Added %d", id)
 }
 
 func main() {
+	RepeatingRequests = make(map[int]*RepeatingRequest)
 	workers := 10
-	control := make(chan int)
-	startControl(workers, control)
+	startControl(workers)
+
+	http.HandleFunc("/add", addHandler)
+	http.ListenAndServe(":9001", nil)
 }
