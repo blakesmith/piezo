@@ -73,6 +73,10 @@ func (r *RepeatingRequest) Start(url string, every time.Duration, rcs chan strin
 	}
 }
 
+func (r *RepeatingRequest) Stop() {
+	r.Ticker.Stop()
+}
+
 func NewRepeatingRequest(url string, every time.Duration, rcs chan string) *RepeatingRequest {
 	r := new(RepeatingRequest)
 	go r.Start(url, every, rcs)
@@ -122,8 +126,11 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "id is required", 400)
 	}
 
-	rec := NewRepeatingRequest(url, time.Duration(every)*time.Second, rcs)
-	RepeatingRequests[id] = rec
+	if rr, ok := RepeatingRequests[id]; ok {
+		rr.Stop()
+	}
+
+	RepeatingRequests[id] = NewRepeatingRequest(url, time.Duration(every)*time.Second, rcs)
 
 	fmt.Fprintf(w, "Added %d", id)
 }
