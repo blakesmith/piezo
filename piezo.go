@@ -14,6 +14,7 @@ import (
 type RequestStat struct {
 	Url          string
 	Status       int
+	Error        error
 	ResponseTime time.Duration
 	StartTime    time.Time
 	AccountId    int
@@ -49,10 +50,13 @@ func doRequest(req *Request) *RequestStat {
 
 	if err != nil {
 		log.Printf("Failed to fetch %s", req.Url)
-	}
-	defer resp.Body.Close()
 
-	stat.Status = resp.StatusCode
+		stat.Error = err
+	} else {
+		defer resp.Body.Close()
+
+		stat.Status = resp.StatusCode
+	}
 
 	return stat
 }
