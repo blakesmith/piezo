@@ -16,31 +16,39 @@ type RequestStat struct {
 	Status       int
 	ResponseTime time.Duration
 	StartTime    time.Time
+	AccountId    int
 }
 
 type RepeatingRequest struct {
+	Id     int
 	Url    string
 	Every  time.Duration
 	Ticker *time.Ticker
 }
 
+type Request struct {
+	Url       string
+	AccountId int
+}
+
 var (
 	port              = flag.String("port", "9001", "Port to run the http server on")
 	RepeatingRequests = make(map[int]*RepeatingRequest)
-	rcs               = make(chan string)
+	rcs               = make(chan *Request)
 )
 
-func doRequest(url string) *RequestStat {
+func doRequest(req *Request) *RequestStat {
 	stat := new(RequestStat)
-	stat.Url = url
+	stat.Url = req.Url
+	stat.AccountId = req.AccountId
 
 	start := time.Now()
-	resp, err := http.Get(url)
+	resp, err := http.Get(req.Url)
 	stat.ResponseTime = time.Now().Sub(start)
 	stat.StartTime = start
 
 	if err != nil {
-		log.Printf("Failed to fetch %s", url)
+		log.Printf("Failed to fetch %s", req.Url)
 	}
 	defer resp.Body.Close()
 
@@ -49,11 +57,11 @@ func doRequest(url string) *RequestStat {
 	return stat
 }
 
-func startClient(rcs chan string, scs chan *RequestStat) {
+func startClient(rcs chan *Request, scs chan *RequestStat) {
 	for {
 		select {
-		case url := <-rcs:
-			scs <- doRequest(url)
+		case r := <-rcs:
+			scs <- doRequest(r)
 		}
 	}
 }
@@ -67,14 +75,18 @@ func startCollect(cs chan *RequestStat) {
 	}
 }
 
-func (r *RepeatingRequest) Start(url string, every time.Duration, rcs chan string) {
+func (r *RepeatingRequest) Start(url string, every time.Duration, id int, rcs chan *Request) {
 	r.Url = url
 	r.Every = every
+	r.Id = id
 	r.Ticker = time.NewTicker(every)
 	for {
 		select {
 		case <-r.Ticker.C:
-			rcs <- r.Url
+			req := new(Request)
+			req.Url = r.Url
+			req.AccountId = r.Id
+			rcs <- req
 		}
 	}
 }
@@ -83,9 +95,9 @@ func (r *RepeatingRequest) Stop() {
 	r.Ticker.Stop()
 }
 
-func NewRepeatingRequest(url string, every time.Duration, rcs chan string) *RepeatingRequest {
+func NewRepeatingRequest(url string, every time.Duration, id int, rcs chan *Request) *RepeatingRequest {
 	r := new(RepeatingRequest)
-	go r.Start(url, every, rcs)
+	go r.Start(url, every, id, rcs)
 
 	return r
 }
@@ -133,7 +145,7 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 		rr.Stop()
 	}
 
-	RepeatingRequests[id] = NewRepeatingRequest(url, time.Duration(every)*time.Second, rcs)
+	RepeatingRequests[id] = NewRepeatingRequest(url, time.Duration(every)*time.Second, id, rcs)
 
 	msg := fmt.Sprintf("Added %d", id)
 	log.Println(msg)
