@@ -134,6 +134,25 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintf(w, "Added %d", id)
 }
+func removeHandler(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	params := make(map[string]string)
+
+	err := requiredParams(r.Form, params, "id")
+
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+
+		return
+	}
+	id, _ := strconv.Atoi(params["id"])
+
+	if rr, ok := RepeatingRequests[id]; ok {
+		rr.Stop()
+	}
+
+	fmt.Fprintf(w, "Stopped %d", id)
+}
 
 func main() {
 	RepeatingRequests = make(map[int]*RepeatingRequest)
@@ -141,5 +160,6 @@ func main() {
 	startControl(workers)
 
 	http.HandleFunc("/add", addHandler)
+	http.HandleFunc("/remove", removeHandler)
 	http.ListenAndServe(":9001", nil)
 }
