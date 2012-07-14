@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -97,34 +99,32 @@ func startControl(workerCount int) {
 	}
 }
 
+func requiredParams(form url.Values, params map[string]string, fields ...string) error {
+	for _, v := range fields {
+		if val, ok := form[v]; ok {
+			params[v] = val[0]
+		} else {
+			return errors.New(fmt.Sprintf("%s is required", v))
+		}
+	}
+
+	return nil
+}
+
 func addHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
+	params := make(map[string]string)
 
-	var url string
-	var every int
-	var id int
+	err := requiredParams(r.Form, params, "url", "every", "id")
 
-	if val, ok := r.Form["url"]; ok {
-		url = val[0]
-	} else {
-		http.Error(w, "url is required", 400)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
 
 		return
 	}
-
-	if val, ok := r.Form["every"]; ok {
-		every, _ = strconv.Atoi(val[0])
-	} else {
-		http.Error(w, "every is required", 400)
-
-		return
-	}
-
-	if val, ok := r.Form["id"]; ok {
-		id, _ = strconv.Atoi(val[0])
-	} else {
-		http.Error(w, "id is required", 400)
-	}
+	id, _ := strconv.Atoi(params["id"])
+	url := params["url"]
+	every, _ := strconv.Atoi(params["every"])
 
 	if rr, ok := RepeatingRequests[id]; ok {
 		rr.Stop()
