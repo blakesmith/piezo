@@ -25,9 +25,9 @@ type RepeatingRequest struct {
 }
 
 var (
-	port = flag.String("port", "9001", "Port to run the http server on")
+	port              = flag.String("port", "9001", "Port to run the http server on")
 	RepeatingRequests = make(map[int]*RepeatingRequest)
-	rcs = make(chan string)
+	rcs               = make(chan string)
 )
 
 func doRequest(url string) *RequestStat {
@@ -62,7 +62,7 @@ func startCollect(cs chan *RequestStat) {
 	for {
 		select {
 		case stat := <-cs:
-			fmt.Println(stat)
+			log.Println(stat)
 		}
 	}
 }
@@ -93,11 +93,11 @@ func NewRepeatingRequest(url string, every time.Duration, rcs chan string) *Repe
 func startControl(workerCount int) {
 	cs := make(chan *RequestStat)
 
-	fmt.Println("Spawning collector")
+	log.Println("Spawning collector")
 	go startCollect(cs)
 
 	for i := 0; i < workerCount; i++ {
-		fmt.Printf("Spawning client %d\n", i)
+		log.Printf("Spawning client %d\n", i)
 		go startClient(rcs, cs)
 	}
 }
@@ -135,7 +135,9 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 
 	RepeatingRequests[id] = NewRepeatingRequest(url, time.Duration(every)*time.Second, rcs)
 
-	fmt.Fprintf(w, "Added %d", id)
+	msg := fmt.Sprintf("Added %d", id)
+	log.Println(msg)
+	fmt.Fprintf(w, msg)
 }
 func removeHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
@@ -154,7 +156,9 @@ func removeHandler(w http.ResponseWriter, r *http.Request) {
 		rr.Stop()
 	}
 
-	fmt.Fprintf(w, "Stopped %d", id)
+	msg := fmt.Sprintf("Stopped %d", id)
+	log.Println(msg)
+	fmt.Fprintf(w, msg)
 }
 
 func main() {
@@ -163,5 +167,7 @@ func main() {
 
 	http.HandleFunc("/add", addHandler)
 	http.HandleFunc("/remove", removeHandler)
-	http.ListenAndServe(":9001", nil)
+
+	log.Printf("Running http server on port %s\n", *port)
+	http.ListenAndServe(fmt.Sprintf(":%s", *port), nil)
 }
