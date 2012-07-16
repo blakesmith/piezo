@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -39,7 +40,17 @@ var (
 )
 
 func buildHttpClient() *http.Client {
-	client := &http.Client{}
+	transport := &http.Transport{Dial: func(netw, addr string) (net.Conn, error) {
+		deadline := time.Now().Add(3 * time.Second)
+		c, err := net.DialTimeout(netw, addr, time.Second)
+		if err != nil {
+			return nil, err
+		}
+		c.SetDeadline(deadline)
+
+		return c, nil
+	}}
+	client := &http.Client{Transport: transport}
 
 	return client
 }
