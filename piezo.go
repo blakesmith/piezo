@@ -34,7 +34,12 @@ type Request struct {
 }
 
 var (
-	port              = flag.String("port", "9001", "Port to run the http server on")
+	optPort           = flag.String("port", "9001", "Port to run the http server on")
+	optConnectTimeout = flag.Int("connect-timeout", 5000, "HTTP connect timeout for polling in milliseconds")
+	optRequestTimeout = flag.Int("request-timeout", 10000, "HTTP request timeout for polling in milliseconds")
+)
+
+var (
 	RepeatingRequests = make(map[int]*RepeatingRequest)
 	rcs               = make(chan *Request)
 )
@@ -63,7 +68,9 @@ func doRequest(req *Request) *RequestStat {
 	httpReq, _ := http.NewRequest("GET", req.Url, nil)
 
 	start := time.Now()
-	resp, err := buildHttpClient(time.Second, (3 * time.Second)).Do(httpReq)
+	ct := time.Duration(*optConnectTimeout) * time.Millisecond
+	rt := time.Duration(*optRequestTimeout) * time.Millisecond
+	resp, err := buildHttpClient(ct, rt).Do(httpReq)
 	stat.ResponseTime = time.Now().Sub(start)
 	stat.StartTime = start
 
@@ -197,12 +204,14 @@ func removeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	flag.Parse()
+
 	workers := 10
 	startControl(workers)
 
 	http.HandleFunc("/add", addHandler)
 	http.HandleFunc("/remove", removeHandler)
 
-	log.Printf("Running http server on port %s\n", *port)
-	http.ListenAndServe(fmt.Sprintf(":%s", *port), nil)
+	log.Printf("Running http server on port %s\n", *optPort)
+	http.ListenAndServe(fmt.Sprintf(":%s", *optPort), nil)
 }
