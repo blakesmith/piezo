@@ -38,13 +38,21 @@ var (
 	rcs               = make(chan *Request)
 )
 
+func buildHttpClient() *http.Client {
+	client := &http.Client{}
+
+	return client
+}
+
 func doRequest(req *Request) *RequestStat {
 	stat := new(RequestStat)
 	stat.Url = req.Url
 	stat.AccountId = req.AccountId
 
+	httpReq, _ := http.NewRequest("GET", req.Url, nil)
+
 	start := time.Now()
-	resp, err := http.Get(req.Url)
+	resp, err := buildHttpClient().Do(httpReq)
 	stat.ResponseTime = time.Now().Sub(start)
 	stat.StartTime = start
 
