@@ -66,10 +66,10 @@ func doRequest(req *Request) *RequestStat {
 	stat.AccountId = req.AccountId
 
 	httpReq, _ := http.NewRequest("GET", req.Url, nil)
-
-	start := time.Now()
 	ct := time.Duration(*optConnectTimeout) * time.Millisecond
 	rt := time.Duration(*optRequestTimeout) * time.Millisecond
+
+	start := time.Now()
 	resp, err := buildHttpClient(ct, rt).Do(httpReq)
 	stat.ResponseTime = time.Now().Sub(start)
 	stat.StartTime = start
