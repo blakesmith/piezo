@@ -39,10 +39,10 @@ var (
 	rcs               = make(chan *Request)
 )
 
-func buildHttpClient() *http.Client {
+func buildHttpClient(dialTimeout, timeout time.Duration) *http.Client {
 	transport := &http.Transport{Dial: func(netw, addr string) (net.Conn, error) {
-		deadline := time.Now().Add(3 * time.Second)
-		c, err := net.DialTimeout(netw, addr, time.Second)
+		deadline := time.Now().Add(timeout)
+		c, err := net.DialTimeout(netw, addr, dialTimeout)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func doRequest(req *Request) *RequestStat {
 	httpReq, _ := http.NewRequest("GET", req.Url, nil)
 
 	start := time.Now()
-	resp, err := buildHttpClient().Do(httpReq)
+	resp, err := buildHttpClient(time.Second, (3 * time.Second)).Do(httpReq)
 	stat.ResponseTime = time.Now().Sub(start)
 	stat.StartTime = start
 
