@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/bradfitz/gomemcache/memcache"
 	"log"
 	"net"
 	"net/http"
@@ -40,6 +42,7 @@ var (
 )
 
 var (
+	kestrelClient     = memcache.New("localhost:22133")
 	RepeatingRequests = make(map[int]*RepeatingRequest)
 	rcs               = make(chan *Request)
 )
@@ -100,7 +103,18 @@ func startCollect(cs chan *RequestStat) {
 	for {
 		select {
 		case stat := <-cs:
-			log.Println(stat)
+			statMessage, err := json.Marshal(stat)
+			if err != nil {
+				log.Printf("Failed to parse %s", stat)
+			} else {
+				item := &memcache.Item{Key: "stats", Value: []byte(statMessage)}
+				err := kestrelClient.Set(item)
+				if err != nil {
+					log.Printf("Failed to queue stat: %s", err)
+				}
+
+				log.Println(string(statMessage))
+			}
 		}
 	}
 }
