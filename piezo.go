@@ -63,7 +63,7 @@ func buildHttpClient(dialTimeout, timeout time.Duration) *http.Client {
 	return client
 }
 
-func doRequest(req *Request) *RequestStat {
+func (req *Request) Do() *RequestStat {
 	stat := new(RequestStat)
 	stat.Url = req.Url
 	stat.AccountId = req.AccountId
@@ -94,7 +94,7 @@ func startClient(rcs chan *Request, scs chan *RequestStat) {
 	for {
 		select {
 		case r := <-rcs:
-			scs <- doRequest(r)
+			scs <- r.Do()
 		}
 	}
 }
