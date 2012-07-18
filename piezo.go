@@ -39,6 +39,7 @@ var (
 	optPort           = flag.String("port", "9001", "Port to run the http server on")
 	optConnectTimeout = flag.Int("connect-timeout", 5000, "HTTP connect timeout for polling in milliseconds")
 	optRequestTimeout = flag.Int("request-timeout", 10000, "HTTP request timeout for polling in milliseconds")
+	optWorkerCount    = flag.Int("worker-count", 10, "Number of request workers")
 )
 
 var (
@@ -113,7 +114,7 @@ func startCollect(cs chan *RequestStat) {
 					log.Printf("Failed to queue stat: %s", err)
 				}
 
-				log.Println(string(statMessage))
+				log.Println(stat)
 			}
 		}
 	}
@@ -189,7 +190,7 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 		rr.Stop()
 	}
 
-	RepeatingRequests[id] = NewRepeatingRequest(url, time.Duration(every)*time.Second, id, rcs)
+	RepeatingRequests[id] = NewRepeatingRequest(url, time.Duration(every)*time.Millisecond, id, rcs)
 
 	msg := fmt.Sprintf("Added %d", id)
 	log.Println(msg)
@@ -220,8 +221,7 @@ func removeHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 
-	workers := 10
-	startControl(workers)
+	startControl(*optWorkerCount)
 
 	http.HandleFunc("/add", addHandler)
 	http.HandleFunc("/remove", removeHandler)
