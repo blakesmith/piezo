@@ -24,10 +24,10 @@ type RequestStat struct {
 }
 
 type RepeatingRequest struct {
-	Id     int
-	Url    string
-	Every  time.Duration
-	Ticker *time.Ticker
+	Id       int
+	Url      string
+	Interval time.Duration
+	Ticker   *time.Ticker
 }
 
 type Request struct {
@@ -121,11 +121,11 @@ func startCollect(cs chan *RequestStat) {
 	}
 }
 
-func (r *RepeatingRequest) Start(url string, every time.Duration, id int, rcs chan *Request) {
+func (r *RepeatingRequest) Start(url string, interval time.Duration, id int, rcs chan *Request) {
 	r.Url = url
-	r.Every = every
+	r.Interval = interval
 	r.Id = id
-	r.Ticker = time.NewTicker(every)
+	r.Ticker = time.NewTicker(interval)
 	for {
 		select {
 		case <-r.Ticker.C:
@@ -142,9 +142,9 @@ func (r *RepeatingRequest) Stop() {
 	r.Ticker.Stop()
 }
 
-func NewRepeatingRequest(url string, every time.Duration, id int, rcs chan *Request) *RepeatingRequest {
+func NewRepeatingRequest(url string, interval time.Duration, id int, rcs chan *Request) *RepeatingRequest {
 	r := new(RepeatingRequest)
-	go r.Start(url, every, id, rcs)
+	go r.Start(url, interval, id, rcs)
 
 	return r
 }
@@ -177,7 +177,7 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	params := make(map[string]string)
 
-	err := requiredParams(r.Form, params, "url", "every", "id")
+	err := requiredParams(r.Form, params, "url", "interval", "id")
 
 	if err != nil {
 		http.Error(w, err.Error(), 400)
@@ -186,13 +186,13 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _ := strconv.Atoi(params["id"])
 	url := params["url"]
-	every, _ := strconv.Atoi(params["every"])
+	interval, _ := strconv.Atoi(params["interval"])
 
 	if rr, ok := RepeatingRequests[id]; ok {
 		rr.Stop()
 	}
 
-	RepeatingRequests[id] = NewRepeatingRequest(url, time.Duration(every)*time.Millisecond, id, rcs)
+	RepeatingRequests[id] = NewRepeatingRequest(url, time.Duration(interval)*time.Millisecond, id, rcs)
 
 	msg := fmt.Sprintf("Added %d", id)
 	log.Println(msg)
