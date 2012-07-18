@@ -32,6 +32,7 @@ type RepeatingRequest struct {
 
 type Request struct {
 	Url       string
+	Method    string
 	AccountId int
 }
 
@@ -69,7 +70,7 @@ func (req *Request) Do() *RequestStat {
 	stat.Url = req.Url
 	stat.AccountId = req.AccountId
 
-	httpReq, _ := http.NewRequest("GET", req.Url, nil)
+	httpReq, _ := http.NewRequest(req.Method, req.Url, nil)
 	ct := time.Duration(*optConnectTimeout) * time.Millisecond
 	rt := time.Duration(*optRequestTimeout) * time.Millisecond
 
@@ -131,6 +132,7 @@ func (r *RepeatingRequest) Start(url string, every time.Duration, id int, rcs ch
 			req := new(Request)
 			req.Url = r.Url
 			req.AccountId = r.Id
+			req.Method = "GET"
 			rcs <- req
 		}
 	}
