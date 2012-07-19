@@ -105,20 +105,31 @@ func startCollect(cs chan *RequestStat) {
 	for {
 		select {
 		case stat := <-cs:
-			statMessage, err := json.Marshal(stat)
-			if err != nil {
-				log.Printf("Failed to parse %s", stat)
-			} else {
-				item := &memcache.Item{Key: "stats", Value: []byte(statMessage)}
-				err := kestrelClient.Set(item)
-				if err != nil {
-					log.Printf("Failed to queue stat: %s", err)
-				}
+			stat.Queue(false)
+			log.Println(stat)
+		}
+	}
+}
 
-				log.Println(stat)
+func (stat *RequestStat) Queue(enabled bool) error {
+	if enabled {
+		statMessage, err := json.Marshal(stat)
+		if err != nil {
+			log.Printf("Failed to parse %s", stat)
+
+			return err
+		} else {
+			item := &memcache.Item{Key: "stats", Value: []byte(statMessage)}
+			err := kestrelClient.Set(item)
+			if err != nil {
+				log.Printf("Failed to queue stat: %s", err)
+
+				return err
 			}
 		}
 	}
+
+	return nil
 }
 
 func (r *RepeatingRequest) Start(url string, interval time.Duration, id int, rcs chan *Request) {
