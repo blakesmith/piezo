@@ -205,7 +205,7 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 
 	RepeatingRequests[id] = NewRepeatingRequest(url, time.Duration(interval)*time.Millisecond, id, rcs)
 
-	msg := fmt.Sprintf("Added %d", id)
+	msg := fmt.Sprintf("Added %d\n", id)
 	log.Println(msg)
 	fmt.Fprintf(w, msg)
 }
@@ -226,7 +226,7 @@ func removeHandler(w http.ResponseWriter, r *http.Request) {
 		rr.Stop()
 	}
 
-	msg := fmt.Sprintf("Stopped %d", id)
+	msg := fmt.Sprintf("Stopped %d\n", id)
 	log.Println(msg)
 	fmt.Fprintf(w, msg)
 }
