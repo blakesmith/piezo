@@ -98,6 +98,12 @@ func (agent *PiezoAgent) StartCollect(cs chan *RequestStat) {
 	}
 }
 
+func (agent *PiezoAgent) StopRepeatingRequest(id int) {
+	if rr, ok := agent.RepeatingRequests[id]; ok {
+		rr.Stop()
+	}
+}
+
 var (
 	piezoAgent *PiezoAgent
 )
@@ -227,9 +233,7 @@ func (h AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	url := params["url"]
 	interval, _ := strconv.Atoi(params["interval"])
 
-	if rr, ok := h.Agent.RepeatingRequests[id]; ok {
-		rr.Stop()
-	}
+	h.Agent.StopRepeatingRequest(id)
 
 	rr := NewRepeatingRequest(id, url, time.Duration(interval)*time.Millisecond)
 	go rr.Start(h.Agent.RequestChannel)
@@ -253,9 +257,7 @@ func (h RemoveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _ := strconv.Atoi(params["id"])
 
-	if rr, ok := h.Agent.RepeatingRequests[id]; ok {
-		rr.Stop()
-	}
+	h.Agent.StopRepeatingRequest(id)
 
 	msg := fmt.Sprintf("Stopped %d\n", id)
 	log.Println(msg)
