@@ -31,22 +31,78 @@ type RepeatingRequest struct {
 }
 
 type Request struct {
-	Url       string
-	Method    string
-	AccountId int
+	Url            string
+	Method         string
+	ConnectTimeout time.Duration
+	RequestTimeout time.Duration
+	AccountId      int
 }
 
-var (
-	optPort           = flag.String("port", "9001", "Port to run the http server on")
-	optConnectTimeout = flag.Int("connect-timeout", 5000, "HTTP connect timeout for polling in milliseconds")
-	optRequestTimeout = flag.Int("request-timeout", 10000, "HTTP request timeout for polling in milliseconds")
-	optWorkerCount    = flag.Int("worker-count", 10, "Number of request workers")
-)
+type Options struct {
+	Port           *string
+	ConnectTimeout *int
+	RequestTimeout *int
+	WorkerCount    *int
+}
+
+type PiezoAgent struct {
+	/*	KestrelClient string,
+		RepeatingRequets map[int]*RepeatingRequest,
+		RequestChannel chan *Request,*/
+	Opts Options
+}
+
+func (agent *PiezoAgent) Setup() {
+	agent.Opts.Port = flag.String("port", "9001", "Port to run the http server on")
+	agent.Opts.ConnectTimeout = flag.Int("connect-timeout", 5000, "HTTP connect timeout for polling in milliseconds")
+	agent.Opts.RequestTimeout = flag.Int("request-timeout", 10000, "HTTP request timeout for polling in milliseconds")
+	agent.Opts.WorkerCount = flag.Int("worker-count", 10, "Number of request workers")
+	flag.Parse()
+}
+
+func (agent *PiezoAgent) Start() {
+	agent.StartControl(*agent.Opts.WorkerCount)
+}
+
+func (agent *PiezoAgent) StartControl(workerCount int) {
+	cs := make(chan *RequestStat)
+
+	log.Println("Spawning collector")
+	go agent.StartCollect(cs)
+
+	for i := 0; i < workerCount; i++ {
+		log.Printf("Spawning client %d\n", i)
+		go agent.StartClient(rcs, cs)
+	}
+}
+
+func (agent *PiezoAgent) StartClient(rcs chan *Request, scs chan *RequestStat) {
+	for {
+		select {
+		case r := <-rcs:
+			scs <- r.Do()
+		}
+	}
+}
+
+func (agent *PiezoAgent) StartCollect(cs chan *RequestStat) {
+	for {
+		select {
+		case stat := <-cs:
+			stat.Queue(false)
+			log.Println(stat)
+		}
+	}
+}
 
 var (
 	kestrelClient     = memcache.New("localhost:22133")
 	RepeatingRequests = make(map[int]*RepeatingRequest)
 	rcs               = make(chan *Request)
+)
+
+var (
+	piezoAgent *PiezoAgent
 )
 
 func buildHttpClient(dialTimeout, timeout time.Duration) *http.Client {
@@ -71,11 +127,9 @@ func (req *Request) Do() *RequestStat {
 	stat.AccountId = req.AccountId
 
 	httpReq, _ := http.NewRequest(req.Method, req.Url, nil)
-	ct := time.Duration(*optConnectTimeout) * time.Millisecond
-	rt := time.Duration(*optRequestTimeout) * time.Millisecond
 
 	start := time.Now()
-	resp, err := buildHttpClient(ct, rt).Do(httpReq)
+	resp, err := buildHttpClient(req.ConnectTimeout, req.RequestTimeout).Do(httpReq)
 	stat.ResponseTime = time.Now().Sub(start)
 	stat.StartTime = start
 
@@ -90,25 +144,6 @@ func (req *Request) Do() *RequestStat {
 	}
 
 	return stat
-}
-
-func startClient(rcs chan *Request, scs chan *RequestStat) {
-	for {
-		select {
-		case r := <-rcs:
-			scs <- r.Do()
-		}
-	}
-}
-
-func startCollect(cs chan *RequestStat) {
-	for {
-		select {
-		case stat := <-cs:
-			stat.Queue(false)
-			log.Println(stat)
-		}
-	}
 }
 
 func (stat *RequestStat) Queue(enabled bool) error {
@@ -132,7 +167,7 @@ func (stat *RequestStat) Queue(enabled bool) error {
 	return nil
 }
 
-func (r *RepeatingRequest) Start(url string, interval time.Duration, id int, rcs chan *Request) {
+func (r *RepeatingRequest) Start(url string, id int, rcs chan *Request, interval, requestTimeout, connectTimeout time.Duration) {
 	r.Url = url
 	r.Interval = interval
 	r.Id = id
@@ -143,6 +178,8 @@ func (r *RepeatingRequest) Start(url string, interval time.Duration, id int, rcs
 			req := new(Request)
 			req.Url = r.Url
 			req.AccountId = r.Id
+			req.ConnectTimeout = connectTimeout
+			req.RequestTimeout = requestTimeout
 			req.Method = "GET"
 			rcs <- req
 		}
@@ -153,23 +190,11 @@ func (r *RepeatingRequest) Stop() {
 	r.Ticker.Stop()
 }
 
-func NewRepeatingRequest(url string, interval time.Duration, id int, rcs chan *Request) *RepeatingRequest {
+func NewRepeatingRequest(url string, id int, rcs chan *Request, interval, requestTimeout, connectTimeout time.Duration) *RepeatingRequest {
 	r := new(RepeatingRequest)
-	go r.Start(url, interval, id, rcs)
+	go r.Start(url, id, rcs, interval, requestTimeout, connectTimeout)
 
 	return r
-}
-
-func startControl(workerCount int) {
-	cs := make(chan *RequestStat)
-
-	log.Println("Spawning collector")
-	go startCollect(cs)
-
-	for i := 0; i < workerCount; i++ {
-		log.Printf("Spawning client %d\n", i)
-		go startClient(rcs, cs)
-	}
 }
 
 func requiredParams(form url.Values, params map[string]string, fields ...string) error {
@@ -203,7 +228,9 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 		rr.Stop()
 	}
 
-	RepeatingRequests[id] = NewRepeatingRequest(url, time.Duration(interval)*time.Millisecond, id, rcs)
+	RepeatingRequests[id] = NewRepeatingRequest(url, id, rcs, time.Duration(interval)*time.Millisecond,
+		time.Duration(*piezoAgent.Opts.RequestTimeout)*time.Millisecond,
+		time.Duration(*piezoAgent.Opts.ConnectTimeout)*time.Millisecond)
 
 	msg := fmt.Sprintf("Added %d\n", id)
 	log.Println(msg)
@@ -232,13 +259,13 @@ func removeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	flag.Parse()
-
-	startControl(*optWorkerCount)
+	piezoAgent = new(PiezoAgent)
+	piezoAgent.Setup()
+	piezoAgent.Start()
 
 	http.HandleFunc("/add", addHandler)
 	http.HandleFunc("/remove", removeHandler)
 
-	log.Printf("Running http server on port %s\n", *optPort)
-	http.ListenAndServe(fmt.Sprintf(":%s", *optPort), nil)
+	log.Printf("Running http server on port %s\n", *piezoAgent.Opts.Port)
+	http.ListenAndServe(fmt.Sprintf(":%s", *piezoAgent.Opts.Port), nil)
 }
