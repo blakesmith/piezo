@@ -50,6 +50,15 @@ type PiezoAgent struct {
 	Opts              Options
 }
 
+type RequestParams url.Values
+type AddHandler struct {
+	Agent *PiezoAgent
+}
+
+type RemoveHandler struct {
+	Agent *PiezoAgent
+}
+
 func (agent *PiezoAgent) ParseOpts() {
 	agent.Opts.Port = flag.String("port", "9001", "Port to run the http server on")
 	agent.Opts.ConnectTimeout = flag.Int("connect-timeout", 5000, "HTTP connect timeout for polling in milliseconds")
@@ -198,15 +207,6 @@ func (r *RepeatingRequest) Start(requestChannel chan *Request) {
 
 func (r *RepeatingRequest) Stop() {
 	r.Ticker.Stop()
-}
-
-type RequestParams url.Values
-type AddHandler struct {
-	Agent *PiezoAgent
-}
-
-type RemoveHandler struct {
-	Agent *PiezoAgent
 }
 
 func (form RequestParams) RequiredParams(fields ...string) (map[string]string, error) {
