@@ -46,18 +46,24 @@ type Options struct {
 }
 
 type PiezoAgent struct {
-	/*	KestrelClient string,
-		RepeatingRequets map[int]*RepeatingRequest,
-		RequestChannel chan *Request,*/
-	Opts Options
+	KestrelClient     *memcache.Client
+	RepeatingRequests map[int]*RepeatingRequest
+	RequestChannel    chan *Request
+	Opts              Options
 }
 
-func (agent *PiezoAgent) Setup() {
+func (agent *PiezoAgent) ParseOpts() {
 	agent.Opts.Port = flag.String("port", "9001", "Port to run the http server on")
 	agent.Opts.ConnectTimeout = flag.Int("connect-timeout", 5000, "HTTP connect timeout for polling in milliseconds")
 	agent.Opts.RequestTimeout = flag.Int("request-timeout", 10000, "HTTP request timeout for polling in milliseconds")
 	agent.Opts.WorkerCount = flag.Int("worker-count", 10, "Number of request workers")
 	flag.Parse()
+}
+
+func (agent *PiezoAgent) Setup() {
+	agent.KestrelClient = memcache.New("localhost:22133")
+	agent.RepeatingRequests = make(map[int]*RepeatingRequest)
+	agent.RequestChannel = make(chan *Request)
 }
 
 func (agent *PiezoAgent) Start() {
@@ -72,7 +78,7 @@ func (agent *PiezoAgent) StartControl(workerCount int) {
 
 	for i := 0; i < workerCount; i++ {
 		log.Printf("Spawning client %d\n", i)
-		go agent.StartClient(rcs, cs)
+		go agent.StartClient(agent.RequestChannel, cs)
 	}
 }
 
@@ -94,12 +100,6 @@ func (agent *PiezoAgent) StartCollect(cs chan *RequestStat) {
 		}
 	}
 }
-
-var (
-	kestrelClient     = memcache.New("localhost:22133")
-	RepeatingRequests = make(map[int]*RepeatingRequest)
-	rcs               = make(chan *Request)
-)
 
 var (
 	piezoAgent *PiezoAgent
@@ -155,7 +155,7 @@ func (stat *RequestStat) Queue(enabled bool) error {
 			return err
 		} else {
 			item := &memcache.Item{Key: "stats", Value: []byte(statMessage)}
-			err := kestrelClient.Set(item)
+			err := piezoAgent.KestrelClient.Set(item)
 			if err != nil {
 				log.Printf("Failed to queue stat: %s", err)
 
@@ -224,11 +224,11 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 	url := params["url"]
 	interval, _ := strconv.Atoi(params["interval"])
 
-	if rr, ok := RepeatingRequests[id]; ok {
+	if rr, ok := piezoAgent.RepeatingRequests[id]; ok {
 		rr.Stop()
 	}
 
-	RepeatingRequests[id] = NewRepeatingRequest(url, id, rcs, time.Duration(interval)*time.Millisecond,
+	piezoAgent.RepeatingRequests[id] = NewRepeatingRequest(url, id, piezoAgent.RequestChannel, time.Duration(interval)*time.Millisecond,
 		time.Duration(*piezoAgent.Opts.RequestTimeout)*time.Millisecond,
 		time.Duration(*piezoAgent.Opts.ConnectTimeout)*time.Millisecond)
 
@@ -249,7 +249,7 @@ func removeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _ := strconv.Atoi(params["id"])
 
-	if rr, ok := RepeatingRequests[id]; ok {
+	if rr, ok := piezoAgent.RepeatingRequests[id]; ok {
 		rr.Stop()
 	}
 
@@ -260,6 +260,7 @@ func removeHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	piezoAgent = new(PiezoAgent)
+	piezoAgent.ParseOpts()
 	piezoAgent.Setup()
 	piezoAgent.Start()
 
