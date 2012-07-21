@@ -103,6 +103,19 @@ func (agent *PiezoAgent) StopRepeatingRequest(id int) {
 		rr.Stop()
 	}
 }
+func (agent *PiezoAgent) AddRepeatingRequest(id int, url string, interval time.Duration) *RepeatingRequest {
+	r := new(RepeatingRequest)
+	r.Id = id
+	r.Url = url
+	r.Interval = interval
+	r.Ticker = time.NewTicker(interval)
+
+	go r.Start(agent.RequestChannel)
+
+	agent.RepeatingRequests[id] = r
+
+	return r
+}
 
 var (
 	piezoAgent *PiezoAgent
@@ -187,16 +200,6 @@ func (r *RepeatingRequest) Stop() {
 	r.Ticker.Stop()
 }
 
-func NewRepeatingRequest(id int, url string, interval time.Duration) *RepeatingRequest {
-	r := new(RepeatingRequest)
-	r.Id = id
-	r.Url = url
-	r.Interval = interval
-	r.Ticker = time.NewTicker(interval)
-
-	return r
-}
-
 type RequestParams url.Values
 type AddHandler struct {
 	Agent *PiezoAgent
@@ -234,11 +237,7 @@ func (h AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	interval, _ := strconv.Atoi(params["interval"])
 
 	h.Agent.StopRepeatingRequest(id)
-
-	rr := NewRepeatingRequest(id, url, time.Duration(interval)*time.Millisecond)
-	go rr.Start(h.Agent.RequestChannel)
-
-	h.Agent.RepeatingRequests[id] = rr
+	h.Agent.AddRepeatingRequest(id, url, time.Duration(interval)*time.Millisecond)
 
 	msg := fmt.Sprintf("Added %d\n", id)
 	log.Println(msg)
