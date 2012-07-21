@@ -167,11 +167,7 @@ func (stat *RequestStat) Queue(enabled bool) error {
 	return nil
 }
 
-func (r *RepeatingRequest) Start(url string, id int, rcs chan *Request, interval, requestTimeout, connectTimeout time.Duration) {
-	r.Url = url
-	r.Interval = interval
-	r.Id = id
-	r.Ticker = time.NewTicker(interval)
+func (r *RepeatingRequest) Start(requestChannel chan *Request, requestTimeout, connectTimeout time.Duration) {
 	for {
 		select {
 		case <-r.Ticker.C:
@@ -181,7 +177,7 @@ func (r *RepeatingRequest) Start(url string, id int, rcs chan *Request, interval
 			req.ConnectTimeout = connectTimeout
 			req.RequestTimeout = requestTimeout
 			req.Method = "GET"
-			rcs <- req
+			requestChannel <- req
 		}
 	}
 }
@@ -190,9 +186,12 @@ func (r *RepeatingRequest) Stop() {
 	r.Ticker.Stop()
 }
 
-func NewRepeatingRequest(url string, id int, rcs chan *Request, interval, requestTimeout, connectTimeout time.Duration) *RepeatingRequest {
+func NewRepeatingRequest(id int, url string, interval time.Duration) *RepeatingRequest {
 	r := new(RepeatingRequest)
-	go r.Start(url, id, rcs, interval, requestTimeout, connectTimeout)
+	r.Id = id
+	r.Url = url
+	r.Interval = interval
+	r.Ticker = time.NewTicker(interval)
 
 	return r
 }
@@ -228,9 +227,10 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 		rr.Stop()
 	}
 
-	piezoAgent.RepeatingRequests[id] = NewRepeatingRequest(url, id, piezoAgent.RequestChannel, time.Duration(interval)*time.Millisecond,
-		time.Duration(*piezoAgent.Opts.RequestTimeout)*time.Millisecond,
-		time.Duration(*piezoAgent.Opts.ConnectTimeout)*time.Millisecond)
+	rr := NewRepeatingRequest(id, url, time.Duration(interval)*time.Millisecond)
+	go rr.Start(piezoAgent.RequestChannel, time.Duration(*piezoAgent.Opts.RequestTimeout)*time.Millisecond, time.Duration(*piezoAgent.Opts.ConnectTimeout)*time.Millisecond)
+
+	piezoAgent.RepeatingRequests[id] = rr
 
 	msg := fmt.Sprintf("Added %d\n", id)
 	log.Println(msg)
