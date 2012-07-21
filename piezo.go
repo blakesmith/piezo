@@ -44,7 +44,6 @@ type Options struct {
 }
 
 type PiezoAgent struct {
-	Kestrel           *KestrelClient
 	RepeatingRequests map[int]*RepeatingRequest
 	RequestChannel    chan *Request
 	Receivers         []Receiver
@@ -77,8 +76,12 @@ func (agent *PiezoAgent) ParseOpts() {
 }
 
 func (agent *PiezoAgent) Setup() {
-	agent.Kestrel = new(KestrelClient)
-	agent.Kestrel.Cache = memcache.New("localhost:22133")
+	agent.Receivers = make([]Receiver, 0)
+
+	kestrel := new(KestrelClient)
+	kestrel.Cache = memcache.New("localhost:22133")
+	agent.RegisterReceiver(kestrel)
+
 	agent.RepeatingRequests = make(map[int]*RepeatingRequest)
 	agent.RequestChannel = make(chan *Request)
 }
@@ -111,7 +114,9 @@ func (agent *PiezoAgent) StartCollect(cs chan *RequestStat) {
 	for {
 		select {
 		case stat := <-cs:
-			agent.Kestrel.Queue(stat)
+			for _, rec := range agent.Receivers {
+				rec.Queue(stat)
+			}
 			log.Println(stat)
 		}
 	}
@@ -134,6 +139,10 @@ func (agent *PiezoAgent) AddRepeatingRequest(id int, url string, interval time.D
 	agent.RepeatingRequests[id] = r
 
 	return r
+}
+
+func (agent *PiezoAgent) RegisterReceiver(rec Receiver) {
+	agent.Receivers = append(agent.Receivers, rec)
 }
 
 func (k *KestrelClient) Queue(stat *RequestStat) error {
