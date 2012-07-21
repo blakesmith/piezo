@@ -50,6 +50,8 @@ type PiezoAgent struct {
 	Opts              Options
 }
 
+type RequestParams url.Values
+
 func (agent *PiezoAgent) ParseOpts() {
 	agent.Opts.Port = flag.String("port", "9001", "Port to run the http server on")
 	agent.Opts.ConnectTimeout = flag.Int("connect-timeout", 5000, "HTTP connect timeout for polling in milliseconds")
@@ -191,7 +193,7 @@ func NewRepeatingRequest(id int, url string, interval time.Duration) *RepeatingR
 	return r
 }
 
-func requiredParams(form url.Values, fields ...string) (map[string]string, error) {
+func (form RequestParams) RequiredParams(fields ...string) (map[string]string, error) {
 	params := make(map[string]string)
 	for _, v := range fields {
 		if val, ok := form[v]; ok {
@@ -207,7 +209,7 @@ func requiredParams(form url.Values, fields ...string) (map[string]string, error
 func addHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
-	params, err := requiredParams(r.Form, "url", "interval", "id")
+	params, err := RequestParams(r.Form).RequiredParams("url", "interval", "id")
 
 	if err != nil {
 		http.Error(w, err.Error(), 400)
@@ -234,7 +236,7 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 func removeHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
-	params, err := requiredParams(r.Form, "id")
+	params, err := RequestParams(r.Form).RequiredParams("id")
 
 	if err != nil {
 		http.Error(w, err.Error(), 400)
