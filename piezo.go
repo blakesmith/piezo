@@ -50,8 +50,6 @@ type PiezoAgent struct {
 	Opts              Options
 }
 
-type RequestParams url.Values
-
 func (agent *PiezoAgent) ParseOpts() {
 	agent.Opts.Port = flag.String("port", "9001", "Port to run the http server on")
 	agent.Opts.ConnectTimeout = flag.Int("connect-timeout", 5000, "HTTP connect timeout for polling in milliseconds")
@@ -193,6 +191,15 @@ func NewRepeatingRequest(id int, url string, interval time.Duration) *RepeatingR
 	return r
 }
 
+type RequestParams url.Values
+type AddHandler struct {
+	Agent *PiezoAgent
+}
+
+type RemoveHandler struct {
+	Agent *PiezoAgent
+}
+
 func (form RequestParams) RequiredParams(fields ...string) (map[string]string, error) {
 	params := make(map[string]string)
 	for _, v := range fields {
@@ -206,7 +213,7 @@ func (form RequestParams) RequiredParams(fields ...string) (map[string]string, e
 	return params, nil
 }
 
-func addHandler(w http.ResponseWriter, r *http.Request) {
+func (h AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
 	params, err := RequestParams(r.Form).RequiredParams("url", "interval", "id")
@@ -220,20 +227,21 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 	url := params["url"]
 	interval, _ := strconv.Atoi(params["interval"])
 
-	if rr, ok := piezoAgent.RepeatingRequests[id]; ok {
+	if rr, ok := h.Agent.RepeatingRequests[id]; ok {
 		rr.Stop()
 	}
 
 	rr := NewRepeatingRequest(id, url, time.Duration(interval)*time.Millisecond)
-	go rr.Start(piezoAgent.RequestChannel)
+	go rr.Start(h.Agent.RequestChannel)
 
-	piezoAgent.RepeatingRequests[id] = rr
+	h.Agent.RepeatingRequests[id] = rr
 
 	msg := fmt.Sprintf("Added %d\n", id)
 	log.Println(msg)
 	fmt.Fprintf(w, msg)
 }
-func removeHandler(w http.ResponseWriter, r *http.Request) {
+
+func (h RemoveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
 	params, err := RequestParams(r.Form).RequiredParams("id")
@@ -245,7 +253,7 @@ func removeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _ := strconv.Atoi(params["id"])
 
-	if rr, ok := piezoAgent.RepeatingRequests[id]; ok {
+	if rr, ok := h.Agent.RepeatingRequests[id]; ok {
 		rr.Stop()
 	}
 
@@ -255,14 +263,21 @@ func removeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	piezoAgent = new(PiezoAgent)
-	piezoAgent.ParseOpts()
-	piezoAgent.Setup()
-	piezoAgent.Start()
+	agent := new(PiezoAgent)
+	piezoAgent = agent
+	agent.ParseOpts()
+	agent.Setup()
+	agent.Start()
 
-	http.HandleFunc("/add", addHandler)
-	http.HandleFunc("/remove", removeHandler)
+	add := new(AddHandler)
+	remove := new(RemoveHandler)
 
-	log.Printf("Running http server on port %s\n", *piezoAgent.Opts.Port)
-	http.ListenAndServe(fmt.Sprintf(":%s", *piezoAgent.Opts.Port), nil)
+	add.Agent = agent
+	remove.Agent = agent
+
+	http.Handle("/add", add)
+	http.Handle("/remove", remove)
+
+	log.Printf("Running http server on port %s\n", *agent.Opts.Port)
+	http.ListenAndServe(fmt.Sprintf(":%s", *agent.Opts.Port), nil)
 }
