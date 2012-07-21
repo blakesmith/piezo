@@ -67,16 +67,12 @@ func (agent *PiezoAgent) Setup() {
 }
 
 func (agent *PiezoAgent) Start() {
-	agent.StartControl(*agent.Opts.WorkerCount)
-}
-
-func (agent *PiezoAgent) StartControl(workerCount int) {
 	cs := make(chan *RequestStat)
 
 	log.Println("Spawning collector")
 	go agent.StartCollect(cs)
 
-	for i := 0; i < workerCount; i++ {
+	for i := 0; i < *agent.Opts.WorkerCount; i++ {
 		log.Printf("Spawning client %d\n", i)
 		go agent.StartClient(agent.RequestChannel, cs)
 	}
