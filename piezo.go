@@ -31,9 +31,9 @@ type RepeatingRequest struct {
 }
 
 type Request struct {
-	Url            string
-	Method         string
-	AccountId      int
+	Url       string
+	Method    string
+	AccountId int
 }
 
 type Options struct {
@@ -77,8 +77,8 @@ func (agent *PiezoAgent) Start() {
 }
 
 func (agent *PiezoAgent) StartClient(rcs chan *Request, scs chan *RequestStat) {
-	ct := time.Duration(*agent.Opts.ConnectTimeout)*time.Millisecond
-	rt := time.Duration(*agent.Opts.RequestTimeout)*time.Millisecond
+	ct := time.Duration(*agent.Opts.ConnectTimeout) * time.Millisecond
+	rt := time.Duration(*agent.Opts.RequestTimeout) * time.Millisecond
 	client := buildHttpClient(ct, rt)
 	for {
 		select {
@@ -191,23 +191,23 @@ func NewRepeatingRequest(id int, url string, interval time.Duration) *RepeatingR
 	return r
 }
 
-func requiredParams(form url.Values, params map[string]string, fields ...string) error {
+func requiredParams(form url.Values, fields ...string) (map[string]string, error) {
+	params := make(map[string]string)
 	for _, v := range fields {
 		if val, ok := form[v]; ok {
 			params[v] = val[0]
 		} else {
-			return errors.New(fmt.Sprintf("%s is required", v))
+			return nil, errors.New(fmt.Sprintf("%s is required", v))
 		}
 	}
 
-	return nil
+	return params, nil
 }
 
 func addHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
-	params := make(map[string]string)
 
-	err := requiredParams(r.Form, params, "url", "interval", "id")
+	params, err := requiredParams(r.Form, "url", "interval", "id")
 
 	if err != nil {
 		http.Error(w, err.Error(), 400)
@@ -233,9 +233,8 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 }
 func removeHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
-	params := make(map[string]string)
 
-	err := requiredParams(r.Form, params, "id")
+	params, err := requiredParams(r.Form, "id")
 
 	if err != nil {
 		http.Error(w, err.Error(), 400)
