@@ -33,8 +33,6 @@ type RepeatingRequest struct {
 type Request struct {
 	Url            string
 	Method         string
-	ConnectTimeout time.Duration
-	RequestTimeout time.Duration
 	AccountId      int
 }
 
@@ -79,10 +77,13 @@ func (agent *PiezoAgent) Start() {
 }
 
 func (agent *PiezoAgent) StartClient(rcs chan *Request, scs chan *RequestStat) {
+	ct := time.Duration(*agent.Opts.ConnectTimeout)*time.Millisecond
+	rt := time.Duration(*agent.Opts.RequestTimeout)*time.Millisecond
+	client := buildHttpClient(ct, rt)
 	for {
 		select {
 		case r := <-rcs:
-			scs <- r.Do()
+			scs <- r.Do(client)
 		}
 	}
 }
@@ -117,7 +118,7 @@ func buildHttpClient(dialTimeout, timeout time.Duration) *http.Client {
 	return client
 }
 
-func (req *Request) Do() *RequestStat {
+func (req *Request) Do(client *http.Client) *RequestStat {
 	stat := new(RequestStat)
 	stat.Url = req.Url
 	stat.AccountId = req.AccountId
@@ -125,7 +126,7 @@ func (req *Request) Do() *RequestStat {
 	httpReq, _ := http.NewRequest(req.Method, req.Url, nil)
 
 	start := time.Now()
-	resp, err := buildHttpClient(req.ConnectTimeout, req.RequestTimeout).Do(httpReq)
+	resp, err := client.Do(httpReq)
 	stat.ResponseTime = time.Now().Sub(start)
 	stat.StartTime = start
 
@@ -163,15 +164,13 @@ func (stat *RequestStat) Queue(enabled bool) error {
 	return nil
 }
 
-func (r *RepeatingRequest) Start(requestChannel chan *Request, requestTimeout, connectTimeout time.Duration) {
+func (r *RepeatingRequest) Start(requestChannel chan *Request) {
 	for {
 		select {
 		case <-r.Ticker.C:
 			req := new(Request)
 			req.Url = r.Url
 			req.AccountId = r.Id
-			req.ConnectTimeout = connectTimeout
-			req.RequestTimeout = requestTimeout
 			req.Method = "GET"
 			requestChannel <- req
 		}
@@ -224,7 +223,7 @@ func addHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rr := NewRepeatingRequest(id, url, time.Duration(interval)*time.Millisecond)
-	go rr.Start(piezoAgent.RequestChannel, time.Duration(*piezoAgent.Opts.RequestTimeout)*time.Millisecond, time.Duration(*piezoAgent.Opts.ConnectTimeout)*time.Millisecond)
+	go rr.Start(piezoAgent.RequestChannel)
 
 	piezoAgent.RepeatingRequests[id] = rr
 
