@@ -44,13 +44,22 @@ type Options struct {
 }
 
 type PiezoAgent struct {
-	KestrelClient     *memcache.Client
+	Kestrel           *KestrelClient
 	RepeatingRequests map[int]*RepeatingRequest
 	RequestChannel    chan *Request
+	Receivers         []Receiver
 	Opts              Options
 }
 
+type Receiver interface {
+	Queue(stat *RequestStat) error
+}
+
 type RequestParams url.Values
+type KestrelClient struct {
+	Cache *memcache.Client
+}
+
 type AddHandler struct {
 	Agent *PiezoAgent
 }
@@ -68,7 +77,8 @@ func (agent *PiezoAgent) ParseOpts() {
 }
 
 func (agent *PiezoAgent) Setup() {
-	agent.KestrelClient = memcache.New("localhost:22133")
+	agent.Kestrel = new(KestrelClient)
+	agent.Kestrel.Cache = memcache.New("localhost:22133")
 	agent.RepeatingRequests = make(map[int]*RepeatingRequest)
 	agent.RequestChannel = make(chan *Request)
 }
@@ -101,7 +111,7 @@ func (agent *PiezoAgent) StartCollect(cs chan *RequestStat) {
 	for {
 		select {
 		case stat := <-cs:
-			stat.Queue(false)
+			agent.Kestrel.Queue(stat)
 			log.Println(stat)
 		}
 	}
@@ -126,9 +136,24 @@ func (agent *PiezoAgent) AddRepeatingRequest(id int, url string, interval time.D
 	return r
 }
 
-var (
-	piezoAgent *PiezoAgent
-)
+func (k *KestrelClient) Queue(stat *RequestStat) error {
+	statMessage, err := json.Marshal(stat)
+	if err != nil {
+		log.Printf("Failed to parse %s", stat)
+
+		return err
+	} else {
+		item := &memcache.Item{Key: "stats", Value: []byte(statMessage)}
+		err := k.Cache.Set(item)
+		if err != nil {
+			log.Printf("Failed to queue stat: %s", err)
+
+			return err
+		}
+	}
+
+	return nil
+}
 
 func buildHttpClient(dialTimeout, timeout time.Duration) *http.Client {
 	transport := &http.Transport{Dial: func(netw, addr string) (net.Conn, error) {
@@ -169,27 +194,6 @@ func (req *Request) Do(client *http.Client) *RequestStat {
 	}
 
 	return stat
-}
-
-func (stat *RequestStat) Queue(enabled bool) error {
-	if enabled {
-		statMessage, err := json.Marshal(stat)
-		if err != nil {
-			log.Printf("Failed to parse %s", stat)
-
-			return err
-		} else {
-			item := &memcache.Item{Key: "stats", Value: []byte(statMessage)}
-			err := piezoAgent.KestrelClient.Set(item)
-			if err != nil {
-				log.Printf("Failed to queue stat: %s", err)
-
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 func (r *RepeatingRequest) Start(requestChannel chan *Request) {
@@ -265,7 +269,6 @@ func (h RemoveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	agent := new(PiezoAgent)
-	piezoAgent = agent
 	agent.ParseOpts()
 	agent.Setup()
 	agent.Start()
