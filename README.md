@@ -3,7 +3,7 @@ From the greek word _piezein_, meaning to squeeze or press
 
 ## What is it?
 
-In its simplest form, Piezo is a simple tool to schedule repeating http requests. It provides a simple http api to schedule recurring requests.
+In its simplest form, Piezo is a simple tool to schedule repeating http requests. It provides a simple http api to schedule and unschedule recurring requests.
 
 Some things I use it for:
 
