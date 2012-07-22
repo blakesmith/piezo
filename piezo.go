@@ -15,12 +15,12 @@ import (
 )
 
 type RequestStat struct {
-	Url          string
-	Status       int
-	Error        error
-	ResponseTime time.Duration
-	StartTime    time.Time
-	AccountId    int
+	Url                string
+	Status             int
+	Error              error
+	ResponseTime       time.Duration
+	StartTime          time.Time
+	RepeatingRequestId int
 }
 
 type RepeatingRequest struct {
@@ -31,9 +31,9 @@ type RepeatingRequest struct {
 }
 
 type Request struct {
-	Url       string
-	Method    string
-	AccountId int
+	Url                string
+	Method             string
+	RepeatingRequestId int
 }
 
 type Options struct {
@@ -190,7 +190,7 @@ func buildHttpClient(dialTimeout, timeout time.Duration) *http.Client {
 func (req *Request) Do(client *http.Client) *RequestStat {
 	stat := new(RequestStat)
 	stat.Url = req.Url
-	stat.AccountId = req.AccountId
+	stat.RepeatingRequestId = req.RepeatingRequestId
 
 	httpReq, _ := http.NewRequest(req.Method, req.Url, nil)
 
@@ -218,7 +218,7 @@ func (r *RepeatingRequest) Start(requestChannel chan *Request) {
 		case <-r.Ticker.C:
 			req := new(Request)
 			req.Url = r.Url
-			req.AccountId = r.Id
+			req.RepeatingRequestId = r.Id
 			req.Method = "GET"
 			requestChannel <- req
 		}
