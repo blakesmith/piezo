@@ -41,6 +41,7 @@ type Options struct {
 	ConnectTimeout *int
 	RequestTimeout *int
 	WorkerCount    *int
+	KestrelHost    *string
 }
 
 type PiezoAgent struct {
@@ -72,6 +73,7 @@ func (agent *PiezoAgent) ParseOpts() {
 	agent.Opts.ConnectTimeout = flag.Int("connect-timeout", 5000, "HTTP connect timeout for polling in milliseconds")
 	agent.Opts.RequestTimeout = flag.Int("request-timeout", 10000, "HTTP request timeout for polling in milliseconds")
 	agent.Opts.WorkerCount = flag.Int("worker-count", 10, "Number of request workers")
+	agent.Opts.KestrelHost = flag.String("kestrel-host", "localhost:22133", "Kestrel host:port address")
 	flag.Parse()
 }
 
@@ -79,7 +81,7 @@ func (agent *PiezoAgent) Setup() {
 	agent.Receivers = make([]Receiver, 0)
 
 	kestrel := new(KestrelClient)
-	kestrel.Cache = memcache.New("localhost:22133")
+	kestrel.Cache = memcache.New(*agent.Opts.KestrelHost)
 	agent.RegisterReceiver(kestrel)
 
 	agent.RepeatingRequests = make(map[int]*RepeatingRequest)
