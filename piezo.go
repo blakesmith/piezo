@@ -279,6 +279,9 @@ func (h RemoveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func main() {
 	agent := new(PiezoAgent)
 	agent.ParseOpts()
+
+	flag.Args()
+
 	agent.Setup()
 	agent.Start()
 
