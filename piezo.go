@@ -158,6 +158,7 @@ func (k *KestrelClient) Queue(stat *RequestStat) error {
 
 		return err
 	} else {
+		log.Println(string(statMessage))
 		item := &memcache.Item{Key: "stats", Value: []byte(statMessage)}
 		err := k.Cache.Set(item)
 		if err != nil {
