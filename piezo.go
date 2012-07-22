@@ -20,11 +20,11 @@ type RequestStat struct {
 	Error              error
 	ResponseTime       time.Duration
 	StartTime          time.Time
-	RepeatingRequestId int
+	RepeatingRequestId string
 }
 
 type RepeatingRequest struct {
-	Id       int
+	Id       string
 	Url      string
 	Interval time.Duration
 	Ticker   *time.Ticker
@@ -33,7 +33,7 @@ type RepeatingRequest struct {
 type Request struct {
 	Url                string
 	Method             string
-	RepeatingRequestId int
+	RepeatingRequestId string
 }
 
 type Options struct {
@@ -46,7 +46,7 @@ type Options struct {
 }
 
 type PiezoAgent struct {
-	RepeatingRequests map[int]*RepeatingRequest
+	RepeatingRequests map[string]*RepeatingRequest
 	RequestChannel    chan *Request
 	Receivers         []Receiver
 	Opts              Options
@@ -88,7 +88,7 @@ func (agent *PiezoAgent) Setup() {
 		agent.RegisterReceiver(kestrel)
 	}
 
-	agent.RepeatingRequests = make(map[int]*RepeatingRequest)
+	agent.RepeatingRequests = make(map[string]*RepeatingRequest)
 	agent.RequestChannel = make(chan *Request)
 }
 
@@ -128,12 +128,12 @@ func (agent *PiezoAgent) StartCollect(cs chan *RequestStat) {
 	}
 }
 
-func (agent *PiezoAgent) StopRepeatingRequest(id int) {
+func (agent *PiezoAgent) StopRepeatingRequest(id string) {
 	if rr, ok := agent.RepeatingRequests[id]; ok {
 		rr.Stop()
 	}
 }
-func (agent *PiezoAgent) AddRepeatingRequest(id int, url string, interval time.Duration) *RepeatingRequest {
+func (agent *PiezoAgent) AddRepeatingRequest(id, url string, interval time.Duration) *RepeatingRequest {
 	r := new(RepeatingRequest)
 	r.Id = id
 	r.Url = url
@@ -252,14 +252,14 @@ func (h AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	id, _ := strconv.Atoi(params["id"])
+	id := params["id"]
 	url := params["url"]
 	interval, _ := strconv.Atoi(params["interval"])
 
 	h.Agent.StopRepeatingRequest(id)
 	h.Agent.AddRepeatingRequest(id, url, time.Duration(interval)*time.Millisecond)
 
-	msg := fmt.Sprintf("Added %d\n", id)
+	msg := fmt.Sprintf("Added %s\n", id)
 	log.Println(msg)
 	fmt.Fprintf(w, msg)
 }
@@ -274,11 +274,11 @@ func (h RemoveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	id, _ := strconv.Atoi(params["id"])
+	id := params["id"]
 
 	h.Agent.StopRepeatingRequest(id)
 
-	msg := fmt.Sprintf("Stopped %d\n", id)
+	msg := fmt.Sprintf("Stopped %s\n", id)
 	log.Println(msg)
 	fmt.Fprintf(w, msg)
 }
