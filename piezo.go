@@ -301,5 +301,8 @@ func main() {
 	http.Handle("/remove", remove)
 
 	log.Printf("Running http server on port %s\n", *agent.Opts.Port)
-	http.ListenAndServe(fmt.Sprintf(":%s", *agent.Opts.Port), nil)
+	err := http.ListenAndServe(fmt.Sprintf(":%s", *agent.Opts.Port), nil)
+	if err != nil {
+		log.Printf(err.Error())
+	}
 }
