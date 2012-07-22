@@ -45,7 +45,7 @@ type Options struct {
 	EnableKestrel  *bool
 }
 
-type PiezoAgent struct {
+type Agent struct {
 	RepeatingRequests map[string]*RepeatingRequest
 	RequestChannel    chan *Request
 	Receivers         []Receiver
@@ -62,14 +62,14 @@ type KestrelClient struct {
 }
 
 type AddHandler struct {
-	Agent *PiezoAgent
+	Agent *Agent
 }
 
 type RemoveHandler struct {
-	Agent *PiezoAgent
+	Agent *Agent
 }
 
-func (agent *PiezoAgent) ParseOpts() {
+func (agent *Agent) ParseOpts() {
 	agent.Opts.Port = flag.String("port", "9001", "Port to run the http server on")
 	agent.Opts.ConnectTimeout = flag.Int("connect-timeout", 5000, "HTTP connect timeout for polling in milliseconds")
 	agent.Opts.RequestTimeout = flag.Int("request-timeout", 10000, "HTTP request timeout for polling in milliseconds")
@@ -79,7 +79,7 @@ func (agent *PiezoAgent) ParseOpts() {
 	flag.Parse()
 }
 
-func (agent *PiezoAgent) Setup() {
+func (agent *Agent) Setup() {
 	agent.Receivers = make([]Receiver, 0)
 
 	if *agent.Opts.EnableKestrel {
@@ -92,7 +92,7 @@ func (agent *PiezoAgent) Setup() {
 	agent.RequestChannel = make(chan *Request)
 }
 
-func (agent *PiezoAgent) Start() {
+func (agent *Agent) Start() {
 	cs := make(chan *RequestStat)
 
 	log.Println("Spawning collector")
@@ -104,7 +104,7 @@ func (agent *PiezoAgent) Start() {
 	}
 }
 
-func (agent *PiezoAgent) StartClient(rcs chan *Request, scs chan *RequestStat) {
+func (agent *Agent) StartClient(rcs chan *Request, scs chan *RequestStat) {
 	ct := time.Duration(*agent.Opts.ConnectTimeout) * time.Millisecond
 	rt := time.Duration(*agent.Opts.RequestTimeout) * time.Millisecond
 	client := buildHttpClient(ct, rt)
@@ -116,7 +116,7 @@ func (agent *PiezoAgent) StartClient(rcs chan *Request, scs chan *RequestStat) {
 	}
 }
 
-func (agent *PiezoAgent) StartCollect(cs chan *RequestStat) {
+func (agent *Agent) StartCollect(cs chan *RequestStat) {
 	for {
 		select {
 		case stat := <-cs:
@@ -128,12 +128,12 @@ func (agent *PiezoAgent) StartCollect(cs chan *RequestStat) {
 	}
 }
 
-func (agent *PiezoAgent) StopRepeatingRequest(id string) {
+func (agent *Agent) StopRepeatingRequest(id string) {
 	if rr, ok := agent.RepeatingRequests[id]; ok {
 		rr.Stop()
 	}
 }
-func (agent *PiezoAgent) AddRepeatingRequest(id, url string, interval time.Duration) *RepeatingRequest {
+func (agent *Agent) AddRepeatingRequest(id, url string, interval time.Duration) *RepeatingRequest {
 	r := new(RepeatingRequest)
 	r.Id = id
 	r.Url = url
@@ -147,7 +147,7 @@ func (agent *PiezoAgent) AddRepeatingRequest(id, url string, interval time.Durat
 	return r
 }
 
-func (agent *PiezoAgent) RegisterReceiver(rec Receiver) {
+func (agent *Agent) RegisterReceiver(rec Receiver) {
 	agent.Receivers = append(agent.Receivers, rec)
 }
 
@@ -284,7 +284,7 @@ func (h RemoveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	agent := new(PiezoAgent)
+	agent := new(Agent)
 	agent.ParseOpts()
 
 	flag.Args()
