@@ -43,6 +43,7 @@ type Options struct {
 	WorkerCount    *int
 	KestrelHost    *string
 	EnableKestrel  *bool
+	KestrelQueue   *string
 }
 
 type Agent struct {
@@ -58,7 +59,8 @@ type Receiver interface {
 
 type RequestParams url.Values
 type KestrelClient struct {
-	Cache *memcache.Client
+	Cache     *memcache.Client
+	QueueName string
 }
 
 type AddHandler struct {
@@ -76,6 +78,7 @@ func (agent *Agent) ParseOpts() {
 	agent.Opts.WorkerCount = flag.Int("worker-count", 10, "Number of request workers")
 	agent.Opts.KestrelHost = flag.String("kestrel-host", "localhost:22133", "Kestrel host:port address")
 	agent.Opts.EnableKestrel = flag.Bool("enable-kestrel", false, "Register kestrel as a request receiver")
+	agent.Opts.KestrelQueue = flag.String("kestrel-queue", "stats", "Name of the kestrel queue")
 	flag.Parse()
 }
 
@@ -85,6 +88,7 @@ func (agent *Agent) Setup() {
 	if *agent.Opts.EnableKestrel {
 		kestrel := new(KestrelClient)
 		kestrel.Cache = memcache.New(*agent.Opts.KestrelHost)
+		kestrel.QueueName = *agent.Opts.KestrelQueue
 		agent.RegisterReceiver(kestrel)
 	}
 
@@ -159,7 +163,7 @@ func (k *KestrelClient) Queue(stat *RequestStat) error {
 		return err
 	} else {
 		log.Println(string(statMessage))
-		item := &memcache.Item{Key: "stats", Value: []byte(statMessage)}
+		item := &memcache.Item{Key: k.QueueName, Value: []byte(statMessage)}
 		err := k.Cache.Set(item)
 		if err != nil {
 			log.Printf("Failed to queue stat: %s", err)
