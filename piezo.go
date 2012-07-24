@@ -162,8 +162,7 @@ func (k *KestrelClient) Queue(stat *RequestStat) error {
 
 		return err
 	} else {
-		log.Println(string(statMessage))
-		item := &memcache.Item{Key: k.QueueName, Value: []byte(statMessage)}
+		item := &memcache.Item{Key: k.QueueName, Value: statMessage}
 		err := k.Cache.Set(item)
 		if err != nil {
 			log.Printf("Failed to queue stat: %s", err)
